@@ -1,0 +1,114 @@
+<Window x:Class="SequentialRenumber.UI.SequentialRenumberWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:ClassModifier="internal"
+        Title="Sequential Renumber"
+        Width="560" Height="480"
+        MinWidth="480" MinHeight="420"
+        WindowStartupLocation="CenterScreen"
+        ShowInTaskbar="False">
+    <DockPanel>
+        <StatusBar DockPanel.Dock="Bottom">
+            <StatusBarItem>
+                <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" />
+            </StatusBarItem>
+        </StatusBar>
+
+        <Grid Margin="12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Anchor element -->
+            <GroupBox Grid.Row="0" Header="Anchor element" Padding="8">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Content="Pick New Element"
+                            Width="120" Padding="0,4" Margin="8,0,0,0"
+                            IsEnabled="{Binding CanToggleRestrict}"
+                            Click="PickNewElementButton_Click" />
+                    <TextBlock Text="{Binding AnchorText}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                </DockPanel>
+            </GroupBox>
+
+            <!-- Target parameter -->
+            <GroupBox Grid.Row="1" Header="Parameter to write" Padding="8" Margin="0,8,0,0">
+                <ComboBox ItemsSource="{Binding ParameterOptions}"
+                          SelectedItem="{Binding SelectedParameter}"
+                          DisplayMemberPath="DisplayLabel"
+                          IsEnabled="{Binding CanEditInputs}" />
+            </GroupBox>
+
+            <!-- Pattern -->
+            <GroupBox Grid.Row="2" Header="Pattern" Padding="8" Margin="0,8,0,0">
+                <Grid IsEnabled="{Binding CanEditInputs}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="90" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Prefix" Margin="0,0,8,2"
+                               ToolTip="Free text placed before the counter. Auto-filled with the selected parameter's current value — delete the parts you don't want instead of typing from scratch." />
+                    <TextBlock Grid.Row="0" Grid.Column="1" Text="Seed" Margin="0,0,8,2"
+                               ToolTip="Starting value, required. All digits sets numeric mode and the padding (01 = 2 digits, 001 = 3). All letters sets Excel-style letter mode (X, Y, Z, AA, AB) — letters have no padding. Mixed (A1) is not allowed." />
+                    <TextBlock Grid.Row="0" Grid.Column="2" Text="Increment by" Margin="0,0,8,2"
+                               ToolTip="How much each click advances the sequence. Whole number, non-zero, may be negative — a descending run stops at 00 (or A). Default 1." />
+                    <TextBlock Grid.Row="0" Grid.Column="3" Text="Suffix" Margin="0,0,0,2"
+                               ToolTip="Free text placed after the counter." />
+
+                    <TextBox Grid.Row="1" Grid.Column="0" Margin="0,0,8,0"
+                             Text="{Binding Prefix, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBox Grid.Row="1" Grid.Column="1" Margin="0,0,8,0"
+                             Text="{Binding Seed, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="All digits (01 = 2-digit padding) or all letters (Excel-style: X, Y, Z, AA). Letter seeds have no padding: AA means the 27th value." />
+                    <TextBox Grid.Row="1" Grid.Column="2" Margin="0,0,8,0"
+                             Text="{Binding StepText, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBox Grid.Row="1" Grid.Column="3"
+                             Text="{Binding Suffix, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <TextBlock Grid.Row="2" Grid.ColumnSpan="4" Margin="0,8,0,0"
+                               FontWeight="Bold"
+                               Text="{Binding PreviewText}" />
+                    <TextBlock Grid.Row="3" Grid.ColumnSpan="4" Margin="0,2,0,0"
+                               Foreground="Firebrick" TextWrapping="Wrap"
+                               Text="{Binding PatternError}" />
+                </Grid>
+            </GroupBox>
+
+            <!-- Options -->
+            <CheckBox Grid.Row="3" Margin="4,10,0,0"
+                      Content="Restrict picking to anchor's category"
+                      IsChecked="{Binding RestrictToCategory}"
+                      IsEnabled="{Binding CanToggleRestrict}" />
+
+            <!-- While a run is active, Revit is in pick mode and this window is not clickable
+                 (spec section 5, known limitation). -->
+            <TextBlock Grid.Row="4" Margin="4,10,0,0" Foreground="Gray" TextWrapping="Wrap"
+                       Text="During a run this window is not clickable — Revit is in pick mode. Click elements in order; press Esc to stop. The whole run is one undo step." />
+
+            <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                <Button Content="Start"
+                        Width="90" Margin="0,0,8,0" Padding="0,4"
+                        IsEnabled="{Binding CanStart}"
+                        Click="StartButton_Click" />
+                <Button Content="Done"
+                        Width="90" Padding="0,4"
+                        IsEnabled="{Binding CanFinish}"
+                        ToolTip="Finished renumbering — closes the tool. Enabled after your first run; the window's X closes at any time."
+                        Click="DoneButton_Click" />
+            </StackPanel>
+        </Grid>
+    </DockPanel>
+</Window>

@@ -1,29 +1,11 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <RevitAddIns>
-  <AddIn Type="Command">
-    <Text>SequentialRenumber - Command 1</Text>
-    <Description>Some description</Description>
-    <Assembly>SequentialRenumber\SequentialRenumber.dll</Assembly>
-    <FullClassName>SequentialRenumber.Command1</FullClassName>
-    <ClientId>ecd531da-ac75-4586-a30e-9bd6cab695f2</ClientId>
-    <VendorId>com.YOUR COMPANY NAME</VendorId>
-    <VendorDescription>YOUR COMPANY NAME, YOUR COMPANY URL</VendorDescription>
-  </AddIn>
-  <AddIn Type="Command">
-    <Text>SequentialRenumber - Command 2</Text>
-    <Description>Some description</Description>
-    <Assembly>SequentialRenumber\SequentialRenumber.dll</Assembly>
-    <FullClassName>SequentialRenumber.Command2</FullClassName>
-    <ClientId>d35567bc-658e-4a2d-b9b2-31acea608dbd</ClientId>
-    <VendorId>com.YOUR COMPANY NAME</VendorId>
-    <VendorDescription>YOUR COMPANY NAME, YOUR COMPANY URL</VendorDescription>
-  </AddIn>
   <AddIn Type="Application">
     <Name>SequentialRenumber</Name>
     <Assembly>SequentialRenumber\SequentialRenumber.dll</Assembly>
-    <FullClassName>SequentialRenumber.App</FullClassName>
+    <FullClassName>SequentialRenumber.App_SequentialRenumber</FullClassName>
     <ClientId>85149bbd-daa9-48d4-aec8-d1bed67a55ea</ClientId>
-    <VendorId>com.YOUR COMPANY NAME</VendorId>
-    <VendorDescription>YOUR COMPANY NAME, YOUR COMPANY URL</VendorDescription>
+    <VendorId>com.accoes</VendorId>
+    <VendorDescription>ACCO Engineered Systems, www.accoes.com</VendorDescription>
   </AddIn>
 </RevitAddIns>
