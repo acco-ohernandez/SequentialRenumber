@@ -151,7 +151,7 @@ namespace SequentialRenumber.UI
                     OnPropertyChanged(nameof(CanStart));
                     OnPropertyChanged(nameof(CanEditInputs));
                     OnPropertyChanged(nameof(CanToggleRestrict));
-                    OnPropertyChanged(nameof(CanFinish));
+                    OnPropertyChanged(nameof(StartButtonText));
                 }
             }
         }
@@ -170,10 +170,12 @@ namespace SequentialRenumber.UI
         }
 
         /// <summary>
-        /// Done is enabled only after at least one run has started (the window's X remains
-        /// available for bailing out early).
+        /// Done is enabled from the first Start onward. No IsRunActive condition: Revit
+        /// disables the whole owned window during pick mode anyway, so mid-run the button
+        /// grays out with the rest of the UI. (The window's X remains available for
+        /// bailing out before any run.)
         /// </summary>
-        public bool CanFinish => HasRunStarted && !IsRunActive;
+        public bool CanFinish => HasRunStarted;
 
         /// <summary>False when a different document is active than the session's (spec section 4, rule 7).</summary>
         public bool IsSessionDocActive
@@ -187,6 +189,9 @@ namespace SequentialRenumber.UI
                 }
             }
         }
+
+        /// <summary>Start button label: reminds the user how to stop while the run is active.</summary>
+        public string StartButtonText => IsRunActive ? "Esc to stop" : "Start";
 
         /// <summary>Start gate: anchor + parameter + valid pattern + correct document + idle (spec 7.7).</summary>
         public bool CanStart =>
@@ -234,7 +239,7 @@ namespace SequentialRenumber.UI
             else
             {
                 PatternError = string.Empty;
-                PreviewText = $"Next value: {_prefix}{formatter.ValueAt(0)}{_suffix}";
+                PreviewText = $"New value: {_prefix}{formatter.ValueAt(0)}{_suffix}";
             }
 
             if (!IsPatternValid)

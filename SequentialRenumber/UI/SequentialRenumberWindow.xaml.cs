@@ -44,9 +44,14 @@ namespace SequentialRenumber.UI
             RaiseRequest(RenumberRequest.PickAnchor);
         }
 
-        /// <summary>"Done" — the user is finished renumbering; closes the tool.</summary>
-        private void DoneButton_Click(object sender, RoutedEventArgs e)
+        /// <summary>
+        /// Close — the user is finished renumbering. Defensive guard: if a click ever lands
+        /// while the pick loop is running (Revit normally disables the whole window in pick
+        /// mode), ignore it — closing mid-loop would orphan the run.
+        /// </summary>
+        private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
+            if (DataContext is RenumberViewModel vm && vm.IsRunActive) return;
             Close();
         }
 
