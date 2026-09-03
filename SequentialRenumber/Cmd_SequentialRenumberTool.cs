@@ -99,7 +99,17 @@ namespace SequentialRenumber
                 MethodBase.GetCurrentMethod().DeclaringType?.FullName,
                 Properties.Resources.Blue_32,
                 Properties.Resources.Blue_16,
-                "Sequentially renumber a text parameter across elements you click in order.");
+                "Number elements one click at a time — EQ-01, EQ-02, EQ-03… or A, B, C… — " +
+                "written straight into a text parameter you choose.");
+
+            // Extended tooltip shown when the cursor lingers on the button.
+            myButtonData.Data.LongDescription =
+                "Select an element to use as the starting example, pick which of its text " +
+                "parameters to write, and set a Prefix / Seed / Increment / Suffix pattern. " +
+                "Press Start, then click elements in order — every click writes the next value " +
+                "in the sequence. Press Esc to stop; one Ctrl+Z undoes the whole run.\n\n" +
+                "Duplicate values are flagged in a session report where you can highlight " +
+                "elements, revert changes, and export to CSV.";
 
             return myButtonData.Data;
         }

@@ -33,8 +33,8 @@ Core loop: user picks a starting element, chooses which text parameter to write,
 | --- | --- |
 | Solution | `C:\Visual Studio Files\SequentialRenumber\SequentialRenumber.sln` |
 | Project | `SequentialRenumber` |
-| Revit version | **2023 only** |
-| Target framework | `net48` |
+| Revit version | **2023 primary**; build configs for 2023–2026 so the tool can be tested on newer Revit before the port (decision M) |
+| Target framework | `net48` (2023/2024), `net8.0-windows` (2025/2026) |
 | UI | WPF |
 | Revit API | `Revit_All_Main_Versions_API_x64` NuGet package |
 | Command entry point | `SequentialRenumber\Cmd_SequentialRenumberTool.cs` |
@@ -348,3 +348,9 @@ Deliverables: sections 7.5, 7.6, 7.7, 7.8.
 | J | Preview label reads **"New value:"** (was "Next value:"). The close button's gate is `HasRunStarted` alone — Revit disables the whole owned window during pick mode (`EnableWindow`), so mid-run graying is Revit's, not ours, and a mid-run click is impossible (a defensive guard ignores one anyway). Esc is the only mid-run stop. |
 | K | Close button renamed back to **"Close"** (since Revit's pick-mode disable makes a mid-run "Done" click impossible, the Done framing added nothing). The Start button is wider and its label changes to **"Esc to stop"** while a run is active. |
 | L | Close is **always enabled** — the enabled-after-first-Start gate (decision I) is retired: it made sense for a "Done" button but a disabled Close button just reads as broken. The mid-run defensive guard stays. |
+
+**2026-09-03** — multi-year testing:
+
+| # | Decision |
+| --- | --- |
+| M | Build configs restored for **2023–2026** (Debug/Release R23–R26) so the tool can be tested on newer Revit before the port; 2020–2022 stay dropped and 2027 arrives with the port itself. `RevitVersionCompat` now carries the real `#if REVIT2023` guards (`IntegerValue`/`(int)` ctor vs. `Value`/`long` ctor). All four configs build with 0 warnings. |
