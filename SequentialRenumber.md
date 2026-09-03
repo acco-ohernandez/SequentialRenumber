@@ -251,7 +251,7 @@ Behavior:
 | --- | --- |
 | **Start** | Begins the run described in 7.4: increments the run number, writes the first value to the anchor, then enters the pick loop. Disabled unless an anchor element, a target parameter, and a valid pattern all exist. |
 | **Pick New Element** | Ends any active run (Seed auto-advances per 7.3), clears the anchor element and parameter selection, **keeps the report**, and prompts for a new element pick. (The run number increments on the next Start, per 7.4.) |
-| **Close** | Enabled after the first Start (the window's X closes at any time). Ends any active run, unregisters the external event, unsubscribes events, and closes the window. (No transaction group can be open at this point — see Section 4, rule 8.) If the report has unexported rows, ask once before closing. |
+| **Close** | Always enabled (a mid-run click is impossible — Revit disables the window in pick mode — and a defensive guard ignores one anyway). Unregisters the external event, unsubscribes events, and closes the window. (No transaction group can be open at this point — see Section 4, rule 8.) If the report has unexported rows, ask once before closing. |
 
 ### 7.8 Edge cases
 
@@ -346,4 +346,5 @@ Deliverables: sections 7.5, 7.6, 7.7, 7.8.
 | H | Step field is labeled **"Increment by"** in the UI (the spec keeps "Step" as the concept name). Close button is labeled **"Done"**. All four pattern labels carry hover tooltips. Dev ribbon tab is named **"ORH Dev"** (user preference over the spec's original "Dev Tools"). |
 | I | **Done** is enabled only after the first run has started (the window's X still closes at any time). Window-close cleanup (event unsubscription + external event disposal) is routed through a final Cleanup external-event raise — see Section 4, rule 8. |
 | J | Preview label reads **"New value:"** (was "Next value:"). The close button's gate is `HasRunStarted` alone — Revit disables the whole owned window during pick mode (`EnableWindow`), so mid-run graying is Revit's, not ours, and a mid-run click is impossible (a defensive guard ignores one anyway). Esc is the only mid-run stop. |
-| K | Close button renamed back to **"Close"** (since Revit's pick-mode disable makes a mid-run "Done" click impossible, the Done framing added nothing); it keeps the enabled-after-first-Start gate. The Start button is wider and its label changes to **"Esc to stop"** while a run is active. |
+| K | Close button renamed back to **"Close"** (since Revit's pick-mode disable makes a mid-run "Done" click impossible, the Done framing added nothing). The Start button is wider and its label changes to **"Esc to stop"** while a run is active. |
+| L | Close is **always enabled** — the enabled-after-first-Start gate (decision I) is retired: it made sense for a "Done" button but a disabled Close button just reads as broken. The mid-run defensive guard stays. |

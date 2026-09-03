@@ -260,7 +260,6 @@ namespace SequentialRenumber.Revit
             var filter = new CategorySelectionFilter(restrict ? anchor.Category?.Id : null);
 
             _viewModel.IsRunActive = true;
-            _viewModel.HasRunStarted = true;
             int written = 0;
 
             FileLogger.Info(

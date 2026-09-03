@@ -105,8 +105,7 @@
                         Click="StartButton_Click" />
                 <Button Content="Close"
                         Width="90" Padding="0,4"
-                        IsEnabled="{Binding CanFinish, FallbackValue=False}"
-                        ToolTip="Finished renumbering — closes the tool. Enabled once you press Start; the window's X closes at any time."
+                        ToolTip="Closes the tool. During a run, press Esc first."
                         Click="CloseButton_Click" />
             </StackPanel>
         </Grid>

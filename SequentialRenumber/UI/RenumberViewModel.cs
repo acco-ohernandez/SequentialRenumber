@@ -25,7 +25,6 @@ namespace SequentialRenumber.UI
         private bool _restrictToCategory = true;
         private bool _isRunActive;
         private bool _isSessionDocActive = true;
-        private bool _hasRunStarted;
 
         public RenumberViewModel()
         {
@@ -155,27 +154,6 @@ namespace SequentialRenumber.UI
                 }
             }
         }
-
-        /// <summary>Set once the first run begins; gates the Done button.</summary>
-        public bool HasRunStarted
-        {
-            get => _hasRunStarted;
-            set
-            {
-                if (SetField(ref _hasRunStarted, value))
-                {
-                    OnPropertyChanged(nameof(CanFinish));
-                }
-            }
-        }
-
-        /// <summary>
-        /// Done is enabled from the first Start onward. No IsRunActive condition: Revit
-        /// disables the whole owned window during pick mode anyway, so mid-run the button
-        /// grays out with the rest of the UI. (The window's X remains available for
-        /// bailing out before any run.)
-        /// </summary>
-        public bool CanFinish => HasRunStarted;
 
         /// <summary>False when a different document is active than the session's (spec section 4, rule 7).</summary>
         public bool IsSessionDocActive
