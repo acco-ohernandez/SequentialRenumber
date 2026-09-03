@@ -29,5 +29,11 @@ namespace SequentialRenumber.Core
 
         /// <summary>Failure reason, duplicate detail, overwrite note, etc.</summary>
         public string Note { get; set; }
+
+        /// <summary>
+        /// The key the value was written under, so Revert Selected can re-resolve the same
+        /// parameter even after runs that targeted different parameters. Not exported to CSV.
+        /// </summary>
+        public TargetParameterKey ParameterKey { get; set; }
     }
 }

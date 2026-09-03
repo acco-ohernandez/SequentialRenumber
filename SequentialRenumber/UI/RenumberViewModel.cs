@@ -23,8 +23,10 @@ namespace SequentialRenumber.UI
         private string _previewText = string.Empty;
         private string _patternError = string.Empty;
         private bool _restrictToCategory = true;
+        private bool _promptOnDuplicates;
         private bool _isRunActive;
         private bool _isSessionDocActive = true;
+        private bool _hasUnexportedRows;
 
         public RenumberViewModel()
         {
@@ -137,6 +139,43 @@ namespace SequentialRenumber.UI
         {
             get => _restrictToCategory;
             set => SetField(ref _restrictToCategory, value);
+        }
+
+        /// <summary>
+        /// When on, a duplicate value shows a Skip / Write Anyway / Stop Run prompt instead
+        /// of being written silently (spec 7.5, default off).
+        /// </summary>
+        public bool PromptOnDuplicates
+        {
+            get => _promptOnDuplicates;
+            set => SetField(ref _promptOnDuplicates, value);
+        }
+
+        /// <summary>The session report, accumulating across runs (spec 7.6).</summary>
+        public ObservableCollection<ReportRow> ReportRows { get; } = new ObservableCollection<ReportRow>();
+
+        /// <summary>True when rows were added since the last CSV export (Close asks once — spec 7.7).</summary>
+        public bool HasUnexportedRows
+        {
+            get => _hasUnexportedRows;
+            private set => SetField(ref _hasUnexportedRows, value);
+        }
+
+        /// <summary>Appends one record to the report grid. Called by the handler as it logs.</summary>
+        public void AddReportRow(Core.RenameRecord record)
+        {
+            ReportRows.Add(new ReportRow(record));
+            HasUnexportedRows = true;
+        }
+
+        /// <summary>Marks the current report content as exported.</summary>
+        public void MarkReportExported() => HasUnexportedRows = false;
+
+        /// <summary>Empties the report grid (run counter is NOT reset — spec 7.6).</summary>
+        public void ClearReport()
+        {
+            ReportRows.Clear();
+            HasUnexportedRows = false;
         }
 
         /// <summary>True while the pick loop is running; locks the inputs and the checkbox.</summary>

@@ -20,6 +20,12 @@ namespace SequentialRenumber.Revit
         /// <summary>Run the sequence: write the anchor, then the pick loop (spec 7.4).</summary>
         StartRun,
 
+        /// <summary>Select and zoom to the elements of the pending report rows (spec 7.6).</summary>
+        HighlightSelection,
+
+        /// <summary>Write OldValue back for the pending report rows in one transaction (spec 7.6).</summary>
+        RevertSelected,
+
         /// <summary>
         /// Final raise after the window closes: unsubscribe the application events and
         /// dispose the external event. Unsubscribing Revit events requires an API context,
@@ -70,11 +76,17 @@ namespace SequentialRenumber.Revit
             uiapp.Application.DocumentClosing += OnDocumentClosing;
         }
 
+        // Existing values of the target parameter; rebuilt at every run start (spec 7.5).
+        private DuplicateIndex _duplicateIndex;
+
         /// <summary>The work to perform on the next <see cref="Execute"/>; consumed once per raise.</summary>
         public RenumberRequest Request { get; set; } = RenumberRequest.None;
 
-        /// <summary>Session report, accumulating across runs. The Phase 3 grid binds to this.</summary>
-        public List<RenameRecord> Records { get; } = new List<RenameRecord>();
+        /// <summary>
+        /// Rows the window hands over for HighlightSelection / RevertSelected; consumed once
+        /// per raise, like <see cref="Request"/>.
+        /// </summary>
+        public List<ReportRow> PendingReportRows { get; set; }
 
         /// <summary>
         /// Runs in a valid Revit API context. Dispatches the pending request and always
@@ -94,6 +106,12 @@ namespace SequentialRenumber.Revit
                         break;
                     case RenumberRequest.StartRun:
                         ExecuteStartRun(app);
+                        break;
+                    case RenumberRequest.HighlightSelection:
+                        ExecuteHighlight(app);
+                        break;
+                    case RenumberRequest.RevertSelected:
+                        ExecuteRevert(app);
                         break;
                     case RenumberRequest.Cleanup:
                         ExecuteCleanup();
@@ -259,12 +277,16 @@ namespace SequentialRenumber.Revit
             bool restrict = _viewModel.RestrictToCategory;
             var filter = new CategorySelectionFilter(restrict ? anchor.Category?.Id : null);
 
+            // One collector at run start; never per pick (spec 7.5). Scope follows the checkbox.
+            _duplicateIndex = BuildDuplicateIndex(doc, anchor, parameterKey, restrict);
+
             _viewModel.IsRunActive = true;
             int written = 0;
 
             FileLogger.Info(
                 $"Run {_runNumber} started. Parameter '{parameterKey.DisplayName}' ({parameterKey.Kind}), " +
-                $"pattern '{_viewModel.Prefix}|{_viewModel.Seed}|{step}|{_viewModel.Suffix}', restrict={restrict}.");
+                $"pattern '{_viewModel.Prefix}|{_viewModel.Seed}|{step}|{_viewModel.Suffix}', restrict={restrict}, " +
+                $"duplicate index: {_duplicateIndex.Count} existing value(s).");
 
             try
             {
@@ -359,6 +381,37 @@ namespace SequentialRenumber.Revit
 
             string oldValue = parameter.AsString() ?? string.Empty;
 
+            // Worksharing: an element owned by someone else is a Failed row, not a crash (spec 7.8).
+            if (!IsEditable(doc, element, out string owner))
+            {
+                AddRecord(session, elementIdValue, categoryName, parameterKey.DisplayName, oldValue, newValue,
+                    RenameStatus.Failed, $"Owned by {owner}.");
+                _viewModel.StatusText = $"{RunningStatus} Element {elementIdValue} is owned by {owner}. Written: {written}.";
+                return ProcessResult.Continue;
+            }
+
+            // A value equal to the element's own current value is not a duplicate of anything else.
+            bool isDuplicate = _duplicateIndex != null
+                && _duplicateIndex.Contains(newValue)
+                && !string.Equals(oldValue, newValue, StringComparison.OrdinalIgnoreCase);
+
+            if (isDuplicate && _viewModel.PromptOnDuplicates)
+            {
+                switch (PromptForDuplicate(newValue))
+                {
+                    case DuplicateChoice.Skip:
+                        AddRecord(session, elementIdValue, categoryName, parameterKey.DisplayName, oldValue, newValue,
+                            RenameStatus.Skipped, $"Duplicate '{newValue}' skipped by user.");
+                        _viewModel.StatusText = $"{RunningStatus} Skipped duplicate {newValue}. Written: {written}.";
+                        return ProcessResult.Continue;
+                    case DuplicateChoice.StopRun:
+                        _viewModel.StatusText = $"Run stopped at duplicate '{newValue}'.";
+                        FileLogger.Warn($"Run {session.RunNumber}: user stopped the run at duplicate '{newValue}'.");
+                        return ProcessResult.StopRun;
+                        // WriteAnyway falls through to the transaction below.
+                }
+            }
+
             using (var transaction = new Transaction(doc, $"Renumber {newValue}"))
             {
                 try
@@ -388,8 +441,31 @@ namespace SequentialRenumber.Revit
                 }
             }
 
-            AddRecord(session, elementIdValue, categoryName, parameterKey.DisplayName, oldValue, newValue,
-                RenameStatus.Applied, string.Empty);
+            // Status precedence: Duplicate (red) beats Overwrote (amber); the other fact
+            // lands in Note (spec 7.5, decision C).
+            RenameStatus status;
+            string note;
+            bool overwrote = !string.IsNullOrEmpty(oldValue);
+            if (isDuplicate)
+            {
+                status = RenameStatus.Duplicate;
+                note = overwrote
+                    ? $"Value already exists in the model. Also overwrote '{oldValue}'."
+                    : "Value already exists in the model.";
+            }
+            else if (overwrote)
+            {
+                status = RenameStatus.Overwrote;
+                note = string.Empty;
+            }
+            else
+            {
+                status = RenameStatus.Applied;
+                note = string.Empty;
+            }
+
+            AddRecord(session, elementIdValue, categoryName, parameterKey.DisplayName, oldValue, newValue, status, note);
+            _duplicateIndex?.Add(newValue);
             session.Advance();
             written++;
             _viewModel.StatusText = $"{RunningStatus} Wrote {newValue}. Written: {written}.";
@@ -399,7 +475,7 @@ namespace SequentialRenumber.Revit
         private void AddRecord(RenumberSession session, long elementIdValue, string categoryName,
             string parameterName, string oldValue, string newValue, RenameStatus status, string note)
         {
-            Records.Add(new RenameRecord
+            _viewModel.AddReportRow(new RenameRecord
             {
                 RunNumber = session.RunNumber,
                 TimestampLocal = DateTime.Now,
@@ -410,11 +486,225 @@ namespace SequentialRenumber.Revit
                 NewValue = newValue,
                 Status = status,
                 Note = note,
+                ParameterKey = _viewModel.SelectedParameter,
             });
 
             FileLogger.Info(
                 $"Run {session.RunNumber} | {status} | element {elementIdValue} | '{oldValue}' -> '{newValue}'" +
                 (string.IsNullOrEmpty(note) ? string.Empty : $" | {note}"));
+        }
+
+        /// <summary>
+        /// One FilteredElementCollector at run start (spec 7.5): the anchor's category when
+        /// the restrict checkbox is checked, all non-type model elements when it is not.
+        /// </summary>
+        private static DuplicateIndex BuildDuplicateIndex(
+            Document doc, Element anchor, TargetParameterKey key, bool restrict)
+        {
+            var index = new DuplicateIndex();
+
+            var collector = new FilteredElementCollector(doc).WhereElementIsNotElementType();
+            if (restrict && anchor.Category != null)
+            {
+                collector = collector.OfCategoryId(anchor.Category.Id);
+            }
+
+            foreach (Element element in collector)
+            {
+                Parameter parameter = ParameterScanner.Resolve(element, key);
+                string value = parameter?.AsString();
+                index.Add(value);
+            }
+
+            return index;
+        }
+
+        private enum DuplicateChoice { WriteAnyway, Skip, StopRun }
+
+        /// <summary>Modal Skip / Write Anyway / Stop Run choice (spec 7.5). Esc means Skip.</summary>
+        private static DuplicateChoice PromptForDuplicate(string newValue)
+        {
+            var dialog = new TaskDialog("Sequential Renumber")
+            {
+                MainInstruction = $"'{newValue}' already exists in the model.",
+                MainContent = "Choose what to do with this element.",
+                CommonButtons = TaskDialogCommonButtons.None,
+                AllowCancellation = true,
+                TitleAutoPrefix = false,
+            };
+            dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Skip this element",
+                "Nothing is written; the value stays available for the next pick.");
+            dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Write it anyway",
+                "The row is marked Duplicate in the report.");
+            dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink3, "Stop the run",
+                "Everything written so far is kept as one undo step.");
+
+            switch (dialog.Show())
+            {
+                case TaskDialogResult.CommandLink2: return DuplicateChoice.WriteAnyway;
+                case TaskDialogResult.CommandLink3: return DuplicateChoice.StopRun;
+                default: return DuplicateChoice.Skip;
+            }
+        }
+
+        /// <summary>Worksharing editability check (spec 7.8); false with the owner's name when blocked.</summary>
+        private static bool IsEditable(Document doc, Element element, out string owner)
+        {
+            owner = null;
+            if (!doc.IsWorkshared) return true;
+
+            CheckoutStatus status = WorksharingUtils.GetCheckoutStatus(doc, element.Id);
+            if (status != CheckoutStatus.OwnedByOtherUser) return true;
+
+            owner = WorksharingUtils.GetWorksharingTooltipInfo(doc, element.Id)?.Owner ?? "another user";
+            return false;
+        }
+
+        /// <summary>
+        /// Selects and zooms to the pending rows' elements (spec 7.6). Rows whose element no
+        /// longer exists are flagged and excluded.
+        /// </summary>
+        private void ExecuteHighlight(UIApplication app)
+        {
+            List<ReportRow> rows = PendingReportRows;
+            PendingReportRows = null;
+            if (rows == null || rows.Count == 0) return;
+
+            UIDocument uidoc = app.ActiveUIDocument;
+            Document doc = uidoc?.Document;
+            if (doc == null || _sessionDoc == null || !doc.Equals(_sessionDoc))
+            {
+                _viewModel.StatusText = "Highlighting needs the session document to be active.";
+                return;
+            }
+
+            var validIds = new List<ElementId>();
+            foreach (ReportRow row in rows)
+            {
+                Element element = doc.GetElement(RevitVersionCompat.ToElementId(row.Record.ElementIdValue));
+                if (element == null || !element.IsValidObject)
+                {
+                    row.IsElementGone = true;
+                    continue;
+                }
+                validIds.Add(element.Id);
+            }
+
+            if (validIds.Count == 0)
+            {
+                _viewModel.StatusText = "None of the selected rows exist in the model anymore.";
+                return;
+            }
+
+            try
+            {
+                ElementHighlighter.Highlight(uidoc, validIds);
+                _viewModel.StatusText = $"Highlighted {validIds.Count} element(s).";
+            }
+            catch (Exception ex)
+            {
+                // ShowElements can fail when no suitable view exists; selection still applied.
+                FileLogger.Warn($"ShowElements failed: {ex.Message}");
+                _viewModel.StatusText = $"Selected {validIds.Count} element(s); Revit could not zoom to them.";
+            }
+        }
+
+        /// <summary>
+        /// Writes OldValue back for every eligible pending row inside a single transaction —
+        /// one undo step (spec 7.6) — and keeps the duplicate index truthful: reverted values
+        /// are removed, restored old values re-added.
+        /// </summary>
+        private void ExecuteRevert(UIApplication app)
+        {
+            List<ReportRow> rows = PendingReportRows;
+            PendingReportRows = null;
+            if (rows == null || rows.Count == 0) return;
+
+            UIDocument uidoc = app.ActiveUIDocument;
+            Document doc = uidoc?.Document;
+            if (doc == null || _sessionDoc == null || !doc.Equals(_sessionDoc))
+            {
+                _viewModel.StatusText = "Reverting needs the session document to be active.";
+                return;
+            }
+
+            // Only rows that actually wrote a value and were not reverted already.
+            var eligible = rows.Where(r =>
+                    !r.IsElementGone &&
+                    (r.Record.Status == RenameStatus.Applied ||
+                     r.Record.Status == RenameStatus.Duplicate ||
+                     r.Record.Status == RenameStatus.Overwrote))
+                .ToList();
+
+            if (eligible.Count == 0)
+            {
+                _viewModel.StatusText = "No revertible rows selected (only Applied, Duplicate, or Overwrote rows can revert).";
+                return;
+            }
+
+            int reverted = 0;
+            using (var transaction = new Transaction(doc, $"Sequential Renumber revert ({eligible.Count} row(s))"))
+            {
+                try
+                {
+                    transaction.Start();
+
+                    foreach (ReportRow row in eligible)
+                    {
+                        RenameRecord record = row.Record;
+
+                        Element element = doc.GetElement(RevitVersionCompat.ToElementId(record.ElementIdValue));
+                        if (element == null || !element.IsValidObject)
+                        {
+                            row.IsElementGone = true;
+                            continue;
+                        }
+
+                        if (!IsEditable(doc, element, out string owner))
+                        {
+                            record.Note = $"Revert blocked; owned by {owner}.";
+                            row.RefreshFromRecord();
+                            continue;
+                        }
+
+                        Parameter parameter = record.ParameterKey == null
+                            ? null
+                            : ParameterScanner.Resolve(element, record.ParameterKey);
+                        if (parameter == null)
+                        {
+                            record.Note = "Revert blocked; parameter no longer writable.";
+                            row.RefreshFromRecord();
+                            continue;
+                        }
+
+                        parameter.Set(record.OldValue ?? string.Empty);
+
+                        _duplicateIndex?.Remove(record.NewValue);
+                        _duplicateIndex?.Add(record.OldValue);
+
+                        record.Status = RenameStatus.Reverted;
+                        record.Note = "Reverted to previous value.";
+                        row.RefreshFromRecord();
+                        reverted++;
+
+                        FileLogger.Info($"Reverted element {record.ElementIdValue}: '{record.NewValue}' -> '{record.OldValue}'.");
+                    }
+
+                    transaction.Commit();
+                }
+                catch (Exception ex)
+                {
+                    if (transaction.GetStatus() == TransactionStatus.Started)
+                    {
+                        transaction.RollBack();
+                    }
+                    FileLogger.Error("Revert failed; transaction rolled back.", ex);
+                    _viewModel.StatusText = $"Revert failed and was rolled back: {ex.Message}";
+                    return;
+                }
+            }
+
+            _viewModel.StatusText = $"Reverted {reverted} of {eligible.Count} selected row(s) in one undo step.";
         }
     }
 }

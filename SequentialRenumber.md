@@ -234,7 +234,7 @@ If a `Transaction` fails (element owned by another user, element pinned in a way
 
 A `DataGrid` in the lower half of the window, accumulating **across runs** in the session.
 
-Columns: Run, Time, Element Id, Category, Parameter, Old Value, New Value, Status, Note.
+Columns, in order: Run, Status, Parameter, Old Value, New Value, Category, Element Id, Time, Note. The CSV export uses the same order.
 
 Behavior:
 

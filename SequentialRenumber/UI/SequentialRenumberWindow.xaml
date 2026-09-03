@@ -3,8 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:ClassModifier="internal"
         Title="Sequential Renumber"
-        Width="560" Height="480"
-        MinWidth="480" MinHeight="420"
+        Width="760" Height="720"
+        MinWidth="620" MinHeight="560"
         WindowStartupLocation="CenterScreen"
         ShowInTaskbar="False">
     <DockPanel>
@@ -21,6 +21,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
@@ -88,17 +89,84 @@
             </GroupBox>
 
             <!-- Options -->
-            <CheckBox Grid.Row="3" Margin="4,10,0,0"
-                      Content="Restrict picking to anchor's category"
-                      IsChecked="{Binding RestrictToCategory}"
-                      IsEnabled="{Binding CanToggleRestrict}" />
+            <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="4,10,0,0">
+                <CheckBox Content="Restrict picking to anchor's category"
+                          IsChecked="{Binding RestrictToCategory}"
+                          IsEnabled="{Binding CanToggleRestrict}" />
+                <CheckBox Content="Prompt me on duplicates" Margin="24,0,0,0"
+                          IsChecked="{Binding PromptOnDuplicates}"
+                          IsEnabled="{Binding CanToggleRestrict}"
+                          ToolTip="When a computed value already exists in the model, ask Skip / Write Anyway / Stop Run instead of writing it silently." />
+            </StackPanel>
+
+            <!-- Report (spec 7.6): accumulates across runs; duplicates red, overwrites amber. -->
+            <GroupBox Grid.Row="4" Header="Report" Padding="8" Margin="0,8,0,0">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
+                        <Button Content="Select All" Width="90" Padding="0,3" Margin="0,0,8,0"
+                                Click="SelectAllButton_Click" />
+                        <Button Content="Revert Selected" Width="110" Padding="0,3" Margin="0,0,8,0"
+                                ToolTip="Writes the old value back to each selected element — one undo step."
+                                Click="RevertSelectedButton_Click" />
+                        <Button Content="Export CSV" Width="90" Padding="0,3" Margin="0,0,8,0"
+                                Click="ExportCsvButton_Click" />
+                        <Button Content="Clear Report" Width="100" Padding="0,3"
+                                Click="ClearReportButton_Click" />
+                    </StackPanel>
+                    <DataGrid x:Name="ReportGrid"
+                              ItemsSource="{Binding ReportRows}"
+                              AutoGenerateColumns="False" IsReadOnly="True"
+                              SelectionMode="Extended" SelectionUnit="FullRow"
+                              CanUserAddRows="False" HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal"
+                              ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                              ScrollViewer.VerticalScrollBarVisibility="Auto"
+                              SelectionChanged="ReportGrid_SelectionChanged">
+                        <DataGrid.RowStyle>
+                            <Style TargetType="DataGridRow">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Status}" Value="Duplicate">
+                                        <Setter Property="Background" Value="#F5C6CB" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Status}" Value="Overwrote">
+                                        <Setter Property="Background" Value="#FFE8A1" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Status}" Value="Failed">
+                                        <Setter Property="Foreground" Value="Firebrick" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Status}" Value="Reverted">
+                                        <Setter Property="Foreground" Value="Gray" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsElementGone}" Value="True">
+                                        <Setter Property="Foreground" Value="Gray" />
+                                        <Setter Property="Background" Value="#EEEEEE" />
+                                        <Setter Property="ToolTip"
+                                                Value="Element no longer exists in the document — excluded from highlight and revert." />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.RowStyle>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Run" Binding="{Binding RunNumber}" Width="40" />
+                            <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="80" />
+                            <DataGridTextColumn Header="Parameter" Binding="{Binding ParameterName}" Width="120" />
+                            <DataGridTextColumn Header="Old Value" Binding="{Binding OldValue}" Width="90" />
+                            <DataGridTextColumn Header="New Value" Binding="{Binding NewValue}" Width="90" />
+                            <DataGridTextColumn Header="Category" Binding="{Binding CategoryName}" Width="120" />
+                            <DataGridTextColumn Header="Element Id" Binding="{Binding ElementIdValue}" Width="80" />
+                            <DataGridTextColumn Header="Time" Binding="{Binding Time}" Width="70" />
+                            <DataGridTextColumn Header="Note" Binding="{Binding Note}" Width="Auto" MinWidth="150" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </GroupBox>
 
             <!-- While a run is active, Revit is in pick mode and this window is not clickable
                  (spec section 5, known limitation). -->
-            <TextBlock Grid.Row="4" Margin="4,10,0,0" Foreground="Gray" TextWrapping="Wrap"
+            <TextBlock Grid.Row="5" Margin="4,10,0,0" Foreground="Gray" TextWrapping="Wrap"
                        Text="During a run this window is not clickable — Revit is in pick mode. Click elements in order; press Esc to stop. The whole run is one undo step." />
 
-            <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
                 <Button Content="{Binding StartButtonText, FallbackValue=Start}"
                         Width="140" Margin="0,0,8,0" Padding="0,4"
                         IsEnabled="{Binding CanStart}"
